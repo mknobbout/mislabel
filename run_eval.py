@@ -10,10 +10,8 @@ data = fetch_openml(name="iris", version=1)
 X, y = data["data"], data["target"]
 X = StandardScaler().fit_transform(X)
 
-y_prime, mask = perturbate_y(X, y, fraction=0.2)
+y_prime, mask = perturbate_y(X, y, fraction=0.1, method='nnar')
 
-# Use logistic, knn and tree
-#models = [LogisticRegression(), KNeighborsClassifier(), DecisionTreeClassifier()]
 
 scores = ExtraTreeFilter().score_samples(X, y_prime)
 
