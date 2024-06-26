@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-class Filter:
+class Scorer:
 
     def score_samples(self, X: np.array, y: np.array) -> pd.Series:
         raise NotImplementedError("score_samples method is not implemented")

@@ -1,3 +1,3 @@
-from .filter import Filter
+from .scorer import Scorer
 
-__all__ = ['Filter']
+__all__ = ['Scorer']

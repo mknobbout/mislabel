@@ -31,6 +31,7 @@ def perturbate_y(X, y, fraction=0.1, method='ncar'):
         raw_weights = X_scaled.dot(random_coefficients)
         # Apply exponential transformation to get positive weights
         weights = np.exp(raw_weights)
+        # Normalize the weights
         idx = np.random.choice(len(y), n, replace=False, p=weights/weights.sum())
 
     y_perturbed = y.copy()
@@ -40,8 +41,6 @@ def perturbate_y(X, y, fraction=0.1, method='ncar'):
 
     # Create a mask of the perturbations
     mask = np.zeros(len(y), dtype=bool)
-
-
 
     # Loop through the possible class labels
     for y_class in np.unique(y):

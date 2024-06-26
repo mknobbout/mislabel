@@ -8,10 +8,10 @@ import torch
 import tqdm
 from torch.utils.data import Dataset, TensorDataset
 
-from mislabel.base import Filter
+from mislabel.base import Scorer
 
 
-class AUMMislabelPredictor(Filter):
+class AUMScorer(Scorer):
     """
     AUMMislabelPredictor is a class that predicts the mislabeling of samples using the AUM method.
     """

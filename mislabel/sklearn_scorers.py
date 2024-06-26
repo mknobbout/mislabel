@@ -10,10 +10,10 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from mislabel.base import Filter
+from mislabel.base import Scorer
 
 
-class ModelFilter(Filter):
+class ModelScorer(Scorer):
     def __init__(self, models: Optional[List] = None, n_folds: int = 5):
         if models is None:
             # Use default ensemble as used in the original paper
@@ -50,45 +50,20 @@ class ModelFilter(Filter):
         return self.get_dataframe_score(self.counts, self.sums)
 
 
-class PCSRandomForest(Filter):
-    """Probability-Centric Stratified RandomForest (PCS-RF)"""
-
-    def __init__(self):
-        self.counts = defaultdict(int)
-        self.sums = defaultdict(float)
-
+class RandomForestScorer(Scorer):
     def score_samples(self, X, y) -> pd.Series:
-        for _ in range(20):
-            # split the dataset into n_folds
-            folds = StratifiedKFold(n_splits=2, shuffle=True)
-            for train_index, test_index in folds.split(X, y):
+        model = RandomForestClassifier(n_estimators=1000, oob_score=True)
+        model.fit(X, y)
 
-                X_train, X_test = X[train_index], X[test_index]
-                y_train, y_test = y[train_index], y[test_index]
+        # Get oob score for each sample
+        oob_score = model.oob_decision_function_
 
-                # train the model on the train dataset
-                model = RandomForestClassifier()
-                model.fit(X_train, y_train)
-
-                # Get probabilities of the true class
-                proba = model.predict_proba(X_test)
-                cls = list(model.classes_)
-                for idx, p, y_sample in zip(test_index, proba, y_test):
-                    self.counts[idx] += 1
-                    self.sums[idx] += p[cls.index(y_sample)]
-
-        return self.get_dataframe_score(self.counts, self.sums)
-
-
-class ExtraTreeFilter(Filter):
-
-    def score_samples(self, X: np.array, y: np.array) -> pd.Series:
-        extra_tree = ExtraTreesClassifier(n_estimators=1000, bootstrap=True, max_samples=0.5)
-
-        extra_tree.fit(X,y)
-        proba = extra_tree.predict_proba(X)
-        cls = list(extra_tree.classes_)
-        counts = {idx: 1 for idx in range(len(X))}
-        sums = {idx: p[cls.index(y_sample)] for idx, p, y_sample in zip(range(len(X)), proba, y)}
+        # Get probabilities of the true class
+        cls = list(model.classes_)
+        counts, sums = dict(), dict()
+        for idx, p, y_sample in zip(range(len(X)), oob_score, y):
+            counts[idx] = 1
+            sums[idx] = p[cls.index(y_sample)]
 
         return self.get_dataframe_score(counts, sums)
+

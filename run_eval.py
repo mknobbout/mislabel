@@ -2,7 +2,7 @@ import torch
 from sklearn.datasets import fetch_openml
 from sklearn.preprocessing import StandardScaler
 
-from mislabel import (AUMMislabelPredictor, ModelFilter, PCSRandomForest, ExtraTreeFilter,
+from mislabel import (AUMScorer, ModelScorer, RandomForestScorer,
                       perturbate_y, score)
 
 # Load the iris dataset
@@ -10,35 +10,24 @@ data = fetch_openml(name="iris", version=1)
 X, y = data["data"], data["target"]
 X = StandardScaler().fit_transform(X)
 
-y_prime, mask = perturbate_y(X, y, fraction=0.1, method='nnar')
+y_prime, mask = perturbate_y(X, y, fraction=0.4)
 
-
-scores = ExtraTreeFilter().score_samples(X, y_prime)
-
-_, r = score(scores, mask)
-print(r)
-
-scores = AUMMislabelPredictor(
+scores = AUMScorer(
     model=torch.nn.Sequential(
         torch.nn.Linear(4, 10),
         torch.nn.ReLU(),
         torch.nn.Linear(10, 3)
     ),
     batch_size=4,
-    epochs=2
+    epochs=5
 ).score_samples(X, y_prime)
-
 _, r1 = score(scores, mask)
+print('AUM:', r1)
 
-print('Test 1:', r1)
-scores2 = PCSRandomForest().score_samples(X, y_prime)
-
+scores2 = RandomForestScorer().score_samples(X, y_prime)
 _, r2 = score(scores2, mask)
+print('RandomForestScorer:', r2)
 
-print('Test 2:', r2)
-
-scores3 = ModelFilter().score_samples(X, y_prime)
-
+scores3 = ModelScorer().score_samples(X, y_prime)
 _, r3 = score(scores3, mask)
-
-print('Test 3:', r3)
+print('ModelScorer:', r3)
