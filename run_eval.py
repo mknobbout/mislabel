@@ -5,11 +5,11 @@ import seaborn as sns
 from mislabel.utils import run_experiment
 
 # Check if file exists
-run_experiment("newsgroups", n_runs=20)
+run_experiment("iris", n_runs=20)
 
-results = pd.read_csv("results/iris.csv")
+results = pd.read_csv("results/newsgroups.csv")
 # Filter out only runs using the nnar method
-# results = results[results["method"] == "nar"]
+results = results[results["method"] == "nnar"]
 
 sns.lineplot(data=results, x="fraction", y="auc_score", hue="algorithm")
 plt.show()

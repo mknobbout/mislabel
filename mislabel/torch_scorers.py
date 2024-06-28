@@ -19,12 +19,14 @@ class AUMScorer(Scorer):
         self,
         hidden_size: Optional[int] = 100,
         batch_size=32,
-        epochs=10,
+        epochs=150,
+        patience=None,
         show_epochs=False,
     ):
         self.batch_size = batch_size
-        self.epochs = epochs
         self.hidden_size = hidden_size
+        self.epochs = epochs
+        self.patience = patience
         self.show_epochs = show_epochs
 
     @staticmethod
@@ -98,7 +100,10 @@ class AUMScorer(Scorer):
         else:
             epochs = range(self.epochs)
 
+        best_loss = float("inf")
+        counter = 0
         for _ in epochs:
+            val_loss = 0
             for batch in loader:
                 optimizer.zero_grad()
                 (x, y), idx = batch
@@ -107,8 +112,20 @@ class AUMScorer(Scorer):
 
                 loss.backward()
                 optimizer.step()
+                val_loss += loss.item()
 
                 self.__class__.update_scores(values, counts, y_pred, y, idx.numpy())
+            val_loss = val_loss / len(loader)
+
+            if val_loss > best_loss:
+                counter += 1
+            else:
+                best_loss = val_loss
+                counter = 0
+
+            # Early stopping
+            if self.patience is not None and counter == self.patience:
+                break
 
         return self.get_dataframe_score(values=values, counts=counts)
 

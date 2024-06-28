@@ -39,7 +39,7 @@ def perturbate_y(X, y, fraction=0.1, method="ncar") -> Tuple[np.array, np.array]
         idx = np.random.choice(len(y), n, replace=False, p=weights / weights.sum())
     if method == "nnar":
         # Select a random subset of 10 columns of X
-        X_r = X[:, np.random.choice(X.shape[1], 10, replace=False)]
+        X_r = X[:, np.random.choice(X.shape[1], min(X.shape[1], 10), replace=False)]
         # Normalize the features
         X_scaled = (X_r - X_r.mean(axis=0)) / X_r.std(axis=0)
         # Generate random coefficients
