@@ -1,33 +1,17 @@
-import torch
-from sklearn.datasets import fetch_openml
-from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+from mislabel.utils import run_experiment
 
-from mislabel import (AUMScorer, ModelScorer, RandomForestScorer,
-                      perturbate_y, score)
 
-# Load the iris dataset
-data = fetch_openml(name="iris", version=1)
-X, y = data["data"], data["target"]
-X = StandardScaler().fit_transform(X)
 
-y_prime, mask = perturbate_y(X, y, fraction=0.4)
 
-scores = AUMScorer(
-    model=torch.nn.Sequential(
-        torch.nn.Linear(4, 10),
-        torch.nn.ReLU(),
-        torch.nn.Linear(10, 3)
-    ),
-    batch_size=4,
-    epochs=5
-).score_samples(X, y_prime)
-_, r1 = score(scores, mask)
-print('AUM:', r1)
+# Check if file exists
+run_experiment("newsgroups", n_runs=20)
 
-scores2 = RandomForestScorer().score_samples(X, y_prime)
-_, r2 = score(scores2, mask)
-print('RandomForestScorer:', r2)
+results = pd.read_csv("results/iris.csv")
+# Filter out only runs using the nnar method
+#results = results[results["method"] == "nar"]
 
-scores3 = ModelScorer().score_samples(X, y_prime)
-_, r3 = score(scores3, mask)
-print('ModelScorer:', r3)
+sns.lineplot(data=results, x="fraction", y="auc_score", hue="algorithm")
+plt.show()

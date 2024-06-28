@@ -1,6 +1,5 @@
-import copy
 from collections import defaultdict
-from typing import Hashable, List
+from typing import Hashable, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -16,13 +15,14 @@ class AUMScorer(Scorer):
     AUMMislabelPredictor is a class that predicts the mislabeling of samples using the AUM method.
     """
 
-    def __init__(self, model: torch.nn.Module, batch_size=32, epochs=10):
+    def __init__(self, hidden_size: Optional[int] = 100, batch_size=32, epochs=10, show_epochs=False):
         self.batch_size = batch_size
         self.epochs = epochs
-        self.model = model
+        self.hidden_size = hidden_size
+        self.show_epochs = show_epochs
 
     @staticmethod
-    def update_scores(counts: dict, sums: dict, logits: torch.Tensor, targets: torch.Tensor, sample_ids: List[Hashable]):
+    def update_scores(values: dict, counts: dict, logits: torch.Tensor, targets: torch.Tensor, sample_ids: List[Hashable]):
         target_values = logits.gather(1, targets.view(-1, 1)).squeeze()
 
         # mask out target values
@@ -32,8 +32,9 @@ class AUMScorer(Scorer):
         margin_values = (target_values - other_logit_values).tolist()
 
         for sample_id, margin in zip(sample_ids, margin_values):
+            values[sample_id] += margin
             counts[sample_id] += 1
-            sums[sample_id] += margin
+
 
     @staticmethod
     def convert_to_dataset(X, y) -> Dataset:
@@ -53,8 +54,17 @@ class AUMScorer(Scorer):
         # Since we are only interested in classification, we will use CrossEntropyLoss
         loss_fn = torch.nn.CrossEntropyLoss()
 
-        # Create a copy of model. Reason being that we don't want to modify the original model
-        model = copy.deepcopy(self.model)
+        # Create a new model
+        if self.hidden_size is None:
+            model = torch.nn.Sequential(
+                torch.nn.Linear(X.shape[1], len(np.unique(y)))
+            )
+        else:
+            model = torch.nn.Sequential(
+                torch.nn.Linear(X.shape[1], self.hidden_size),
+                torch.nn.ReLU(),
+                torch.nn.Linear(self.hidden_size, len(np.unique(y)))
+            )
 
         # Simple Adam optimizer
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -66,10 +76,16 @@ class AUMScorer(Scorer):
         )
 
         # Create an AUM object
+        values = defaultdict(float)
         counts = defaultdict(int)
-        sums = defaultdict(float)
 
-        for _ in tqdm.tqdm(range(self.epochs), desc="Epochs"):
+        # Show a progress bar if show_epochs is True
+        if self.show_epochs:
+            epochs = tqdm.tqdm(range(self.epochs), desc="Epochs")
+        else:
+            epochs = range(self.epochs)
+
+        for _ in epochs:
             for batch in loader:
                 optimizer.zero_grad()
                 (x, y), idx = batch
@@ -79,9 +95,9 @@ class AUMScorer(Scorer):
                 loss.backward()
                 optimizer.step()
 
-                self.__class__.update_scores(counts, sums, y_pred, y, idx.numpy())
+                self.__class__.update_scores(values, counts, y_pred, y, idx.numpy())
 
-        return self.get_dataframe_score(counts, sums)
+        return self.get_dataframe_score(values=values, counts=counts)
 
 
 class IndexedDataset(Dataset):

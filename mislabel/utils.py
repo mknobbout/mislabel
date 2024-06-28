@@ -1,9 +1,12 @@
+import itertools
+import os
 from typing import Tuple
 
 import numpy as np
 import pandas as pd
+import tqdm
 from sklearn.metrics import auc
-
+from mislabel import AUMScorer, RandomForestScorer, ModelScorer
 
 def perturbate_y(X, y, fraction=0.1, method='ncar'):
     # Method to perturbate the target variable, in order to detect misclassifications.
@@ -24,7 +27,10 @@ def perturbate_y(X, y, fraction=0.1, method='ncar'):
         # Draw "fraction" samples based on the probability that they have
         idx = np.random.choice(len(y), n, replace=False, p=weights/weights.sum())
     if method == 'nnar':
-        X_scaled = (X - X.mean(axis=0)) / X.std(axis=0)
+        # Select a random subset of 10 columns of X
+        X_r = X[:, np.random.choice(X.shape[1], 10, replace=False)]
+        # Normalize the features
+        X_scaled = (X_r - X_r.mean(axis=0)) / X_r.std(axis=0)
         # Generate random coefficients
         random_coefficients = np.random.normal(size=X_scaled.shape[1])
         # Calculate the random output as a weighted sum of normalized features
@@ -56,14 +62,122 @@ def perturbate_y(X, y, fraction=0.1, method='ncar'):
     return y_perturbed, mask
 
 
+def get_data(experiment) -> Tuple[np.array, np.array]:
+    """
+    Load the data for the experiment
+    :param experiment: Name of the experiment
+    :return: Tuple of X and y
+    """
+
+    if experiment not in ['iris', 'newsgroups']:
+        raise ValueError("Invalid experiment")
+
+    # Load the data for the experiment
+    if experiment == 'iris':
+        from sklearn.datasets import fetch_openml
+        data = fetch_openml(name="iris", version=1)
+        X, y = data["data"], data["target"]
+        X = (X - X.mean(axis=0)) / X.std(axis=0)
+        X = X.values
+    if experiment == 'newsgroups':
+        from sklearn.datasets import fetch_20newsgroups_vectorized
+        data = fetch_20newsgroups_vectorized(subset='test')
+        X, y = data["data"], data["target"]
+        # SVD to 1024 components
+        from sklearn.decomposition import TruncatedSVD
+        X = TruncatedSVD(n_components=1024).fit_transform(X)
+    return X, y
+
+
+def run_experiment(experiment, n_runs=10) -> pd.DataFrame:
+    """
+    Run the experiment
+    :param experiment: Name of the experiment
+    :return: A dataframe with the results
+    """
+    # Get absolute path of this file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Create a directory to store the results
+    results_dir = os.path.join(current_dir, '..', 'results')
+    os.makedirs(results_dir, exist_ok=True)
+    # Experiment csv
+    experiment_csv = os.path.join(results_dir, f"{experiment}.csv")
+
+    # Load the data
+    X, y = get_data(experiment)
+
+    if os.path.isfile(experiment_csv):
+        print(f"Loading previous results for {experiment}")
+        result = pd.read_csv(experiment_csv).to_dict(orient="records")
+    else:
+        print(f"Running experiment for {experiment}")
+        result = []
+
+    methods = ['ncar', 'nar', 'nnar']
+    fractions = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
+    runs = range(n_runs)
+    algorithms = ['AUMScorer', 'RandomForestScorer', 'ModelScorer']
+
+    def run_algorithm(X, y, mask, method, fraction, run, algorithm):
+        """
+        Run the algorithm
+        :param X: Features
+        :param y: Target variable
+        :param mask: Mask of the mislabelings
+        :param method: Method to perturbate the target variable
+        :param fraction: Fraction of the target variable to perturbate
+        :param run: Run number
+        :param algorithm: Algorithm to use
+        """
+        if algorithm == 'AUMScorer':
+            params = {
+                "iris": {"hidden_size": None, "batch_size": 32, "epochs": 12},
+                "newsgroups": {"hidden_size": 100, "batch_size": 32, "epochs": 150},
+            }
+            model = AUMScorer(**params[experiment])
+        elif algorithm == 'RandomForestScorer':
+            model = RandomForestScorer()
+        elif algorithm == 'ModelScorer':
+            model = ModelScorer()
+        else:
+            raise ValueError("Invalid algorithm")
+
+        scores = model.score_samples(X, y)
+        _, auc_score = score(scores, mask)
+
+        return {
+            "method": method,
+            "fraction": fraction,
+            "run": run,
+            "algorithm": algorithm,
+            "auc_score": auc_score
+        }
+
+    all_runs = set(itertools.product(methods, fractions, runs, algorithms))
+    runs_done = set([(x['method'], x['fraction'], x['run'], x['algorithm']) for x in result])
+    runs_to_do = all_runs - runs_done
+    print(f"Runs to do: {len(runs_to_do)}")
+
+    # Compute cartesian product
+    for method, fraction, run, algorithm in tqdm.tqdm(runs_to_do):
+        # Perturbate the target variable
+        y_prime, mask = perturbate_y(X, y, method=method, fraction=fraction)
+
+        # Run the experiments
+        result.append(run_algorithm(X, y_prime, mask, method, fraction, run, algorithm))
+
+        pd.DataFrame(result).to_csv(f"results/{experiment}.csv", index=False)
+
+    return pd.DataFrame(result)
+
+
 def score(scores, mask) -> Tuple[pd.DataFrame, float]:
     # Sort the scores by score
     result_df = pd.DataFrame({
-        "idx": scores.index,
         "score": scores.values,
         "mislabeled": mask
     }).sort_values(by="score", ascending=False)
 
     # Calculate the AUC
-    return result_df, auc(result_df["score"], 1 - result_df["mislabeled"])
+    return result_df, auc(result_df["score"], 1-result_df["mislabeled"])
 
