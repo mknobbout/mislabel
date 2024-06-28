@@ -17,7 +17,8 @@ class Scorer:
         results = [
             {
                 "idx": sample_id,
-                "score": values[sample_id] / (counts[sample_id] if counts is not None else 1),
+                "score": values[sample_id]
+                / (counts[sample_id] if counts is not None else 1),
             }
             for sample_id in values.keys()
         ]
@@ -28,4 +29,3 @@ class Scorer:
             scores = (scores - scores.min()) / (scores.max() - scores.min())
 
         return scores
-

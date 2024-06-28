@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
@@ -32,7 +32,6 @@ class ModelScorer(Scorer):
         self.models = models
         self.n_folds = n_folds
 
-
     def score_samples(self, X: np.array, y: np.array) -> pd.Series:
         values, counts = defaultdict(float), defaultdict(int)
 
@@ -42,7 +41,6 @@ class ModelScorer(Scorer):
 
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
-
 
             # train the model on the train dataset
             for model in self.models:
@@ -71,6 +69,8 @@ class RandomForestScorer(Scorer):
 
         # Get probabilities of the true class
         cls = list(model.classes_)
-        result = {idx: p[cls.index(y_sample)] for idx, p, y_sample in zip(range(len(X)), oob_score, y)}
+        result = {
+            idx: p[cls.index(y_sample)]
+            for idx, p, y_sample in zip(range(len(X)), oob_score, y)
+        }
         return self.get_dataframe_score(result)
-

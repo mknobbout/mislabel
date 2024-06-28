@@ -15,14 +15,26 @@ class AUMScorer(Scorer):
     AUMMislabelPredictor is a class that predicts the mislabeling of samples using the AUM method.
     """
 
-    def __init__(self, hidden_size: Optional[int] = 100, batch_size=32, epochs=10, show_epochs=False):
+    def __init__(
+        self,
+        hidden_size: Optional[int] = 100,
+        batch_size=32,
+        epochs=10,
+        show_epochs=False,
+    ):
         self.batch_size = batch_size
         self.epochs = epochs
         self.hidden_size = hidden_size
         self.show_epochs = show_epochs
 
     @staticmethod
-    def update_scores(values: dict, counts: dict, logits: torch.Tensor, targets: torch.Tensor, sample_ids: List[Hashable]):
+    def update_scores(
+        values: dict,
+        counts: dict,
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        sample_ids: List[Hashable],
+    ):
         target_values = logits.gather(1, targets.view(-1, 1)).squeeze()
 
         # mask out target values
@@ -35,7 +47,6 @@ class AUMScorer(Scorer):
             values[sample_id] += margin
             counts[sample_id] += 1
 
-
     @staticmethod
     def convert_to_dataset(X, y) -> Dataset:
 
@@ -44,9 +55,13 @@ class AUMScorer(Scorer):
             # Convert target label to int64 (required by torch)
             target_labels = np.unique(y)
             # Map the target labels to integers
-            y = np.array([np.where(target_labels == label)[0][0] for label in y], dtype=np.int64)
+            y = np.array(
+                [np.where(target_labels == label)[0][0] for label in y], dtype=np.int64
+            )
 
-        return TensorDataset(torch.tensor(X, dtype=torch.float32), torch.tensor(y, dtype=torch.int64))
+        return TensorDataset(
+            torch.tensor(X, dtype=torch.float32), torch.tensor(y, dtype=torch.int64)
+        )
 
     def score_samples(self, X: np.array, y: np.array) -> pd.Series:
         dataset = self.__class__.convert_to_dataset(X, y)
@@ -56,14 +71,12 @@ class AUMScorer(Scorer):
 
         # Create a new model
         if self.hidden_size is None:
-            model = torch.nn.Sequential(
-                torch.nn.Linear(X.shape[1], len(np.unique(y)))
-            )
+            model = torch.nn.Sequential(torch.nn.Linear(X.shape[1], len(np.unique(y))))
         else:
             model = torch.nn.Sequential(
                 torch.nn.Linear(X.shape[1], self.hidden_size),
                 torch.nn.ReLU(),
-                torch.nn.Linear(self.hidden_size, len(np.unique(y)))
+                torch.nn.Linear(self.hidden_size, len(np.unique(y))),
             )
 
         # Simple Adam optimizer
@@ -104,6 +117,7 @@ class IndexedDataset(Dataset):
     """
     IndexedDataset is a wrapper around a torch Dataset that returns the index of the sample along with the sample.
     """
+
     def __init__(self, data):
         self.data = data
 
@@ -112,6 +126,3 @@ class IndexedDataset(Dataset):
 
     def __getitem__(self, index):
         return self.data[index], index
-
-
-
