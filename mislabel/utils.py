@@ -193,7 +193,7 @@ def run_experiment(experiment, n_runs=10) -> pd.DataFrame:
         # Run the experiments
         result.append(run_algorithm(X, y_prime, mask, method, fraction, run, algorithm))
 
-        pd.DataFrame(result).to_csv(f"results/{experiment}.csv", index=False)
+        pd.DataFrame(result).to_csv(experiment_csv, index=False)
 
     return pd.DataFrame(result)
 
