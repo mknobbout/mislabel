@@ -2,6 +2,7 @@ import copy
 from collections import defaultdict
 from typing import List, Optional
 
+import warnings
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -9,6 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.exceptions import ConvergenceWarning
 
 from mislabel.base import Scorer
 
@@ -37,6 +39,8 @@ class ModelScorer(Scorer):
 
         # split the dataset into n_folds
         folds = StratifiedKFold(n_splits=self.n_folds, shuffle=True, random_state=42)
+        warnings.filterwarnings('ignore', category=ConvergenceWarning)
+
         for train_index, test_index in folds.split(X, y):
 
             X_train, X_test = X[train_index], X[test_index]

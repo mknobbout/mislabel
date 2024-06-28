@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import tqdm
 from sklearn.metrics import auc
+from sklearn.model_selection import train_test_split
 
 from mislabel import AUMScorer, ModelScorer, RandomForestScorer
 
@@ -80,7 +81,7 @@ def get_data(experiment) -> Tuple[np.array, np.array]:
     :return: Tuple of X and y
     """
 
-    if experiment not in ["iris", "newsgroups"]:
+    if experiment not in ["iris", "newsgroups", "covtype"]:
         raise ValueError("Invalid experiment")
 
     # Load the data for the experiment
@@ -99,6 +100,15 @@ def get_data(experiment) -> Tuple[np.array, np.array]:
         X, y = data["data"], data["target"]
         # SVD to 1024 components
         X = TruncatedSVD(n_components=1024).fit_transform(X)
+    if experiment == "covtype":
+        from sklearn.datasets import fetch_covtype
+
+        data = fetch_covtype()
+        X, y = data["data"], data["target"]
+        # Select 20% from X,y
+        X, _, y, _ = train_test_split(X, y, test_size=0.9, stratify=y, random_state=42)
+        X = (X - X.mean(axis=0)) / X.std(axis=0)
+
     return X, y
 
 
@@ -147,6 +157,7 @@ def run_experiment(experiment, n_runs=10) -> pd.DataFrame:
             params = {
                 "iris": {"hidden_size": None, "batch_size": 32, "epochs": 12},
                 "newsgroups": {"hidden_size": 100, "batch_size": 32, "epochs": 150},
+                "covtype": {"hidden_size": 100, "batch_size": 32, "epochs": 150},
             }
             model = AUMScorer(**params[experiment])
         elif algorithm == "RandomForestScorer":

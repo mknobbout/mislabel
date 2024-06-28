@@ -1,0 +1,6 @@
+method,fraction,run,algorithm,auc_score
+nar,0.4,19,ModelScorer,0.7857142857142857
+nar,0.2,19,ModelScorer,0.8571428571428571
+nnar,0.4,11,ModelScorer,0.7857142857142856
+nar,0.05,7,AUMScorer,0.9204529970325184
+nar,0.25,9,ModelScorer,0.6428571428571428
