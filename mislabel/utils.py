@@ -42,7 +42,7 @@ def perturbate_y(X, y, fraction=0.1, method="ncar") -> Tuple[np.array, np.array]
         # Select a random subset of 10 columns of X
         X_r = X[:, np.random.choice(X.shape[1], min(X.shape[1], 10), replace=False)]
         # Normalize the features
-        X_scaled = (X_r - X_r.mean(axis=0)) / X_r.std(axis=0)
+        X_scaled = (X_r - X_r.mean(axis=0)) / np.clip(X_r.std(axis=0), 1e-3, np.inf)
         # Generate random coefficients
         random_coefficients = np.random.normal(size=X_scaled.shape[1])
         # Calculate the random output as a weighted sum of normalized features
@@ -81,7 +81,7 @@ def get_data(experiment) -> Tuple[np.array, np.array]:
     :return: Tuple of X and y
     """
 
-    if experiment not in ["iris", "newsgroups", "covtype"]:
+    if experiment not in ["iris", "newsgroups", "covtype", "mnist"]:
         raise ValueError("Invalid experiment")
 
     # Load the data for the experiment
@@ -108,7 +108,12 @@ def get_data(experiment) -> Tuple[np.array, np.array]:
         # Select 20% from X,y
         X, _, y, _ = train_test_split(X, y, test_size=0.9, stratify=y, random_state=42)
         X = (X - X.mean(axis=0)) / X.std(axis=0)
+    if experiment == "mnist":
+        from sklearn.datasets import load_digits
 
+        data = load_digits()
+        X, y = data["data"], data["target"]
+        X = (X - X.mean(axis=0)) / np.clip(X.std(axis=0), 1e-3, np.inf)
     return X, y
 
 
@@ -126,9 +131,6 @@ def run_experiment(experiment, n_runs=10) -> pd.DataFrame:
     os.makedirs(results_dir, exist_ok=True)
     # Experiment csv
     experiment_csv = os.path.join(results_dir, f"{experiment}.csv")
-
-    # Load the data
-    X, y = get_data(experiment)
 
     if os.path.isfile(experiment_csv):
         print(f"Loading previous results for {experiment}")
@@ -158,6 +160,7 @@ def run_experiment(experiment, n_runs=10) -> pd.DataFrame:
                 "iris": {"hidden_size": None, "batch_size": 32, "epochs": 12},
                 "newsgroups": {"hidden_size": 100, "batch_size": 32, "epochs": 150},
                 "covtype": {"hidden_size": 100, "batch_size": 32, "epochs": 150},
+                "mnist": {"hidden_size": 50, "batch_size": 32, "epochs": 75},
             }
             model = AUMScorer(**params[experiment])
         elif algorithm == "RandomForestScorer":
@@ -183,6 +186,12 @@ def run_experiment(experiment, n_runs=10) -> pd.DataFrame:
         [(x["method"], x["fraction"], x["run"], x["algorithm"]) for x in result]
     )
     runs_to_do = all_runs - runs_done
+    if len(runs_to_do) == 0:
+        return pd.DataFrame(result)
+
+    # Load the data
+    X, y = get_data(experiment)
+
     print(f"Runs to do: {len(runs_to_do)} (out of {len(all_runs)})")
 
     # Compute cartesian product
